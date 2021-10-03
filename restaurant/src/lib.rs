@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)] // suppress warnings since this is sample code
+
 mod front_of_house; // instead get this from another file with this filename
 
 mod back_of_house {
@@ -53,8 +55,8 @@ pub fn eat_at_restaurant() {
     // to see or modify the seasonal fruit that comes with the meal
     // meal.seasonal_fruit = String::from("blueberries");
 
-    let order1 = back_of_house::Appetizer::Soup;
-    let order2 = back_of_house::Appetizer::Salad;
+    let _order1 = back_of_house::Appetizer::Soup;
+    let _order2 = back_of_house::Appetizer::Salad;
 
     hosting::add_to_waitlist(); // note that the use directive below here still applies
 }
@@ -74,7 +76,7 @@ pub fn eat_at_restaurant_with_use() {
 
     serving::take_order();
 
-    let order = Appetizer::Soup;
+    let _order = Appetizer::Soup;
 }
 
 use std::fmt;
