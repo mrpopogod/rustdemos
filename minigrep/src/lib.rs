@@ -25,20 +25,35 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(args: &[String]) -> Result<Config, &str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
+    pub fn new<T>(mut args: T) -> Result<Config, &'static str>
+    where
+        T: Iterator<Item = String>, // In order for tests to work, we make this definition a bit more generic
+    {
+        args.next();
 
-        let query = args[1].clone(); // need to clone to get our own copy that has lifetime controlled by Config
-        let filename = args[2].clone();
+        // iterating over args instead of constructing a vector in main and processinjg it means we get to avoid clones;
+        // instead we take ownership of the strings through the iterator.  That also means the Errs are now guaranteed
+        // to have a static lifetime for their contents
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a query string"),
+        };
+
+        let filename = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file name"),
+        };
 
         let case_sensitive = env::var("MINIGREP_CASE_INSENSITIVE").is_err(); // note; if we ever use this in tests
                                                                              // we msut be careful, as setting env variables
-                                                                             // are for the duration of the process and 
+                                                                             // are for the duration of the process and
                                                                              // rust tests are multithreaded by default
 
-        Ok(Config { query, filename, case_sensitive })
+        Ok(Config {
+            query,
+            filename,
+            case_sensitive,
+        })
     }
 }
 
@@ -66,28 +81,18 @@ fn _run(config: &Config, data_provider: &dyn ProvideData) -> Result<(), Box<dyn 
 }
 
 fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut results = Vec::new();
-
-    for line in contents.lines() {
-        if line.contains(query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
 }
 
 fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     let query = query.to_lowercase();
-    let mut results = Vec::new();
-
-    for line in contents.lines() {
-        if line.to_lowercase().contains(&query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.to_lowercase().contains(&query))
+        .collect()
 }
 
 #[cfg(test)]
@@ -113,8 +118,9 @@ mod tests {
 
     #[test]
     fn config_accepts_three_args() {
-        let args = good_args();
-        let result = Config::new(&args);
+        let good_args = good_args();
+        let args = good_args.iter().map(|s| s.to_string());
+        let result = Config::new(args);
         assert!(
             result.is_ok(),
             "Config didn't successfully new, error was {:?}",
@@ -124,8 +130,9 @@ mod tests {
 
     #[test]
     fn config_requires_three_args() {
-        let args = vec!["first".to_string()];
-        let result = Config::new(&args);
+        let bad_args = vec!["first".to_string()];
+        let args = bad_args.iter().map(|s| s.to_string());
+        let result = Config::new(args);
         assert!(result.is_err(), "Config didn't complain when newed");
     }
 
@@ -186,6 +193,13 @@ Trust me.";
     }
 
     fn good_config() -> Config {
-        Config::new(&good_args()).unwrap()
+        let good_args = good_args(); // need to let to capture the returned good_args so it maintains its life through
+                                     // the end of this function; if we try to immediately chain it with iter then
+                                     // it will go out of scope at the end of the line (as it's temporary) and then the
+                                     // variable containing the chained iterator mutations lost what it was holding
+                                     // and things go wrong
+        let args = good_args.iter().map(|s| s.to_string()); // iter returns an option so you know when iteration stops
+                                                            // thus we need to map to extract the string inside
+        Config::new(args).unwrap()
     }
 }
